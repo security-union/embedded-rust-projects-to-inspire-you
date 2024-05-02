@@ -1,23 +1,50 @@
-use chrono::Utc;
-use csv::Writer;
-use std::error::Error;
+use control_accelerometer::constants::BROADCAST_PORT;
+use csv::ReaderBuilder;
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::fs::File;
-use tokio::net::UdpSocket;
+use std::io::{self, Write};
+use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let socket = UdpSocket::bind("224.0.0.123:7645").await?;
-    socket.join_multicast_v4("224.0.0.123".parse()?, "0.0.0.0".parse()?)?;
+fn main() -> io::Result<()> {
+    let mcast_group = "224.0.0.123";
+    let any = "0.0.0.0";
 
-    let start_time = Utc::now().format("%Y-%m-%d-%H-%M-%S").to_string();
-    let file = File::create(format!("{}.csv", start_time))?;
-    let mut wtr = Writer::from_writer(file);
+    let mcast_group: Ipv4Addr = mcast_group.parse().unwrap();
+    let any: Ipv4Addr = any.parse().unwrap();
 
-    let mut buf = [0; 1024];
+    // Create a socket and configure it for reuse
+    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
+    socket.set_reuse_address(true)?;
+
+    // Bind the socket to the appropriate port and any interface
+    let bind_addr: SocketAddrV4 = SocketAddrV4::new("0.0.0.0".parse().unwrap(), *BROADCAST_PORT);
+    let bind_addr = SockAddr::from(bind_addr);
+    socket.bind(&bind_addr)?;
+
+    // Join the multicast group
+    socket.join_multicast_v4(&mcast_group, &any)?;
+
+    // Convert to std::net::UdpSocket to use in a more familiar API
+    let std_socket = std::net::UdpSocket::from(socket);
+
+    let mut file = File::create("output.csv")?;
+    let mut buf = [0u8; 10240]; // Buffer size can be adjusted as needed
+
     loop {
-        let (len, _) = socket.recv_from(&mut buf).await?;
-        let msg = String::from_utf8_lossy(&buf[..len]);
-        wtr.write_record(&[msg.as_ref()])?;
-        wtr.flush()?;
+        let (amt, _) = std_socket.recv_from(&mut buf)?;
+        println!("got udp data");
+        let data = &buf[..amt];
+        let cursor = std::io::Cursor::new(data);
+        let mut rdr = ReaderBuilder::new().from_reader(cursor);
+
+        for result in rdr.records() {
+            let record = result?;
+            let csv_string = format!(
+                "{},{}\n",
+                record.get(0).unwrap_or(""),
+                record.get(1).unwrap_or("")
+            );
+            file.write_all(csv_string.as_bytes())?;
+        }
     }
 }

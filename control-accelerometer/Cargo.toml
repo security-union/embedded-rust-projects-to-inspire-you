@@ -12,5 +12,5 @@ byteorder = "1.4"
 portpicker = "0.1.1"
 lazy_static = "1.4.0"
 chrono = "0.4.38"
-tokio = { version = "1", features = ["full"] }
 csv = "1.1.6"
+socket2 = "0.4"
