@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup GPIO for CS pins using gpio_cdev
     let mut chip = Chip::new("/dev/gpiochip0")?;
-    let cs_pins = vec![chip.get_line(17)?, chip.get_line(22)?];
+    let cs_pins = vec![chip.get_line(6)?, chip.get_line(17)?, chip.get_line(22)?];
     let mut cs_handles: Vec<LineHandle> = cs_pins
         .into_iter()
         .map(|line| line.request(LineRequestFlags::OUTPUT, 1, "spi-cs").unwrap())
