@@ -1,16 +1,14 @@
-use control_accelerometer::constants::BROADCAST_PORT;
+use control_accelerometer::constants::{ANY, BROADCAST_IP, BROADCAST_PORT};
 use csv::ReaderBuilder;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::fs::File;
 use std::io::{self, Write};
-use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddrV4};
 
 fn main() -> io::Result<()> {
-    let mcast_group = "224.0.0.123";
-    let any = "0.0.0.0";
 
-    let mcast_group: Ipv4Addr = mcast_group.parse().unwrap();
-    let any: Ipv4Addr = any.parse().unwrap();
+    let mcast_group: Ipv4Addr = *BROADCAST_IP;
+    let any: Ipv4Addr = *ANY;
 
     // Create a socket and configure it for reuse
     let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
