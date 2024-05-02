@@ -6,3 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+spidev = "0.5"
+gpio-cdev = "0.5"
+byteorder = "1.4"
