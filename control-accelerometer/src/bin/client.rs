@@ -1,11 +1,11 @@
 use byteorder::{ByteOrder, LittleEndian};
+use control_accelerometer::constants::{BROADCAST_IP, BROADCAST_PORT};
 use gpio_cdev::{Chip, LineHandle, LineRequestFlags};
 use spidev::{SpiModeFlags, Spidev, SpidevOptions, SpidevTransfer};
 use std::io::Write;
-use std::net::{IpAddr, Ipv4Addr, SocketAddrV4, UdpSocket};
+use std::net::{SocketAddrV4, UdpSocket};
 use std::thread;
 use std::time::Duration;
-use lazy_static::lazy_static;
 
 const ACC_CONVERSION: f32 = 2.0 * 16.0 / 8192.0;
 const REG_READ: u8 = 0x80;
@@ -14,11 +14,6 @@ const REG_BW_RATE: u8 = 0x2C;
 const REG_POWER_CTL: u8 = 0x2D;
 const REG_DATA_START: u8 = 0x32;
 const REG_DATA_FORMAT: u8 = 0x31;
-
-lazy_static! {
-    pub static ref BROADCAST_IP: Ipv4Addr = Ipv4Addr::new(224,0,0,123).into();
-    pub static ref BROADCAST_PORT: u16 = 7645;
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup SPI
@@ -35,8 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cs_pins = vec![chip.get_line(6)?, chip.get_line(17)?, chip.get_line(22)?];
     let mut cs_handles: Vec<LineHandle> = cs_pins
         .into_iter()
-        .map(|line| 
-            line.request(LineRequestFlags::OUTPUT, 1, "spi-cs").unwrap())
+        .map(|line| line.request(LineRequestFlags::OUTPUT, 1, "spi-cs").unwrap())
         .collect();
 
     // Initialize ADXL345
@@ -60,7 +54,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     socket.set_multicast_ttl_v4(32)?;
     // create destination ip and port
     let dest: SocketAddrV4 = SocketAddrV4::new(*BROADCAST_IP, *BROADCAST_PORT);
-
 
     // Main loop
     loop {
