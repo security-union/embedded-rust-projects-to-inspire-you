@@ -2,8 +2,10 @@ use byteorder::{ByteOrder, LittleEndian};
 use gpio_cdev::{Chip, LineHandle, LineRequestFlags};
 use spidev::{SpiModeFlags, Spidev, SpidevOptions, SpidevTransfer};
 use std::io::Write;
+use std::net::{IpAddr, Ipv4Addr, SocketAddrV4, UdpSocket};
 use std::thread;
 use std::time::Duration;
+use lazy_static::lazy_static;
 
 const ACC_CONVERSION: f32 = 2.0 * 16.0 / 8192.0;
 const REG_READ: u8 = 0x80;
@@ -12,6 +14,11 @@ const REG_BW_RATE: u8 = 0x2C;
 const REG_POWER_CTL: u8 = 0x2D;
 const REG_DATA_START: u8 = 0x32;
 const REG_DATA_FORMAT: u8 = 0x31;
+
+lazy_static! {
+    pub static ref BROADCAST_IP: Ipv4Addr = Ipv4Addr::new(224,0,0,123).into();
+    pub static ref BROADCAST_PORT: u16 = 7645;
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup SPI
@@ -28,7 +35,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cs_pins = vec![chip.get_line(6)?, chip.get_line(17)?, chip.get_line(22)?];
     let mut cs_handles: Vec<LineHandle> = cs_pins
         .into_iter()
-        .map(|line| line.request(LineRequestFlags::OUTPUT, 1, "spi-cs").unwrap())
+        .map(|line| 
+            line.request(LineRequestFlags::OUTPUT, 1, "spi-cs").unwrap())
         .collect();
 
     // Initialize ADXL345
@@ -46,13 +54,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    let find_available_socket = portpicker::pick_unused_port().expect("No available port");
+    let socket = UdpSocket::bind(format!("0.0.0.0:{}", find_available_socket))?;
+    socket.join_multicast_v4(&(*BROADCAST_IP), &"0.0.0.0".parse()?)?;
+    socket.set_multicast_ttl_v4(32)?;
+    // create destination ip and port
+    let dest: SocketAddrV4 = SocketAddrV4::new(*BROADCAST_IP, *BROADCAST_PORT);
+
+
     // Main loop
     loop {
+        let date_and_time = chrono::Local::now();
+        let mut payload = format!("timestamp={}", date_and_time);
         for cs_handle in &mut cs_handles {
             thread::sleep(Duration::from_millis(10));
             let (x, y, z) = read_acceleration(&mut spi, cs_handle)?;
             let pin = cs_handle.line().offset();
-            println!("ADXL345 pin={} x={:.3}, y={:.3}, z={:.3}", pin, x, y, z);
+            let read = format!("pin={}, {:.3}, {:.3}, {:.3}", pin, x, y, z);
+            // append to payload
+            payload = format!("{}, {}", payload, read);
+        }
+        if let Err(e) = socket.send_to(payload.as_bytes(), &dest) {
+            eprintln!("Error sending data: {:?}", e);
         }
     }
 }
