@@ -1,9 +1,11 @@
+use chrono::{DateTime, Local};
 use control_accelerometer::constants::{BROADCAST_IP, BROADCAST_PORT};
 
+use csv::ReaderBuilder;
 use quinn_udp::{RecvMeta, UdpSockRef, UdpSocketState};
 use socket2::{Domain, Protocol, SockAddr, SockRef, Socket, Type};
 use std::fs::File;
-use std::io::{ErrorKind, IoSliceMut};
+use std::io::{ErrorKind, IoSliceMut, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -27,9 +29,13 @@ async fn main() -> anyhow::Result<()> {
     let multi_addr = SocketAddrV4::new(*BROADCAST_IP, *BROADCAST_PORT);
     let socket = listen_to_multicast_ip(multi_addr)?;
     let socket = std::net::UdpSocket::from(socket);
+    // name file using human readable timestamp from chronos
+    // Get the current datetime with the local timezone
+    let now: DateTime<Local> = Local::now();
 
-    let _file = File::create("output.csv")?;
-    let _buf = [0u8; 10240]; // Buffer size can be adjusted as needed
+    // Format the datetime into a string in the specified format
+    let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
+    let mut file = File::create(format!("{}.csv", timestamp))?;
 
     let quinn_socket = UdpSocketState::default();
     let mut buffer_for_receiving_data = [0u8; 2048];
@@ -41,9 +47,19 @@ async fn main() -> anyhow::Result<()> {
             Ok(_len) => {
                 // get data
                 let len = meta[0].len;
-                let telemetry = &iov[0][..len];
-                let csv_row = String::from_utf8(telemetry.to_vec())?;
-                println!("got data {}", csv_row);
+                let data = &iov[0][..len];
+                let cursor = std::io::Cursor::new(data);
+                let mut rdr = ReaderBuilder::new().from_reader(cursor);
+
+                for result in rdr.records() {
+                    let record = result?;
+                    let csv_string = format!(
+                        "{},{}\n",
+                        record.get(0).unwrap_or(""),
+                        record.get(1).unwrap_or("")
+                    );
+                    file.write_all(csv_string.as_bytes())?;
+                }
             }
             Err(e) => {
                 if e.kind() == ErrorKind::WouldBlock {
@@ -52,21 +68,4 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     }
-    // loop {
-    //     let (amt, _) = std_socket.recv_from(&mut buf)?;
-    //     println!("got udp data");
-    //     let data = &buf[..amt];
-    //     let cursor = std::io::Cursor::new(data);
-    //     let mut rdr = ReaderBuilder::new().from_reader(cursor);
-
-    //     for result in rdr.records() {
-    //         let record = result?;
-    //         let csv_string = format!(
-    //             "{},{}\n",
-    //             record.get(0).unwrap_or(""),
-    //             record.get(1).unwrap_or("")
-    //         );
-    //         file.write_all(csv_string.as_bytes())?;
-    //     }
-    // }
 }
