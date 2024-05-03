@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let find_available_socket = portpicker::pick_unused_port().expect("No available port");
     let socket = UdpSocket::bind(format!("0.0.0.0:{}", find_available_socket))?;
-    socket.join_multicast_v4(&(*BROADCAST_IP), &"0.0.0.0".parse()?)?;
+    socket.join_multicast_v4(&BROADCAST_IP, &"0.0.0.0".parse()?)?;
     socket.set_multicast_ttl_v4(32)?;
     // create destination ip and port
     let dest: SocketAddrV4 = SocketAddrV4::new(*BROADCAST_IP, *BROADCAST_PORT);
@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // append to payload
             payload = format!("{}, {}", payload, read);
         }
-        if let Err(e) = socket.send_to(payload.as_bytes(), &dest) {
+        if let Err(e) = socket.send_to(payload.as_bytes(), dest) {
             eprintln!("Error sending data: {:?}", e);
         }
     }
@@ -92,7 +92,7 @@ fn read_register(
     length: usize,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     cs.set_value(0)?; // Set CS low
-    let command = vec![reg_address | REG_READ | (if length > 1 { REG_MULTI_BYTE } else { 0 })];
+    let command = [reg_address | REG_READ | (if length > 1 { REG_MULTI_BYTE } else { 0 })];
     let tx_buf = command
         .iter()
         .cloned()

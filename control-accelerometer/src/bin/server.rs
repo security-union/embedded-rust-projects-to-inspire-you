@@ -1,9 +1,9 @@
-use control_accelerometer::constants::{ANY, BROADCAST_IP, BROADCAST_PORT};
-use csv::ReaderBuilder;
+use control_accelerometer::constants::{BROADCAST_IP, BROADCAST_PORT};
+
 use quinn_udp::{RecvMeta, UdpSockRef, UdpSocketState};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::fs::File;
-use std::io::{self, ErrorKind, IoSliceMut, Write};
+use std::io::{ErrorKind, IoSliceMut};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -32,8 +32,8 @@ async fn main() -> anyhow::Result<()> {
     let socket = listen_to_multicast_ip(multi_addr)?;
     let socket = std::net::UdpSocket::from(socket);
 
-    let mut file = File::create("output.csv")?;
-    let mut buf = [0u8; 10240]; // Buffer size can be adjusted as needed
+    let _file = File::create("output.csv")?;
+    let _buf = [0u8; 10240]; // Buffer size can be adjusted as needed
 
     let quinn_socket = UdpSocketState::default();
     let mut buffer_for_receiving_data = [0u8; 2048];
