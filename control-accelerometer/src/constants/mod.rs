@@ -7,4 +7,3 @@ lazy_static! {
     pub static ref BROADCAST_PORT: u16 = 7645;
     pub static ref ANY: Ipv4Addr = "0.0.0.0".parse().unwrap();
 }
-

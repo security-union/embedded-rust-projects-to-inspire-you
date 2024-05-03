@@ -1,5 +1,3 @@
-
-
 ## Q&A
 
 ### Verify Multicast Handling on Devices
