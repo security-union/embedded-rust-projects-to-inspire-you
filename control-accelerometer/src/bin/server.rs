@@ -17,10 +17,10 @@ fn main() -> io::Result<()> {
     // Bind the socket to the appropriate port and any interface
     let bind_addr: SocketAddrV4 = SocketAddrV4::new("0.0.0.0".parse().unwrap(), *BROADCAST_PORT);
     let bind_addr = SockAddr::from(bind_addr);
+    socket.join_multicast_v4(&mcast_group, &any)?;
     socket.bind(&bind_addr)?;
 
     // Join the multicast group
-    socket.join_multicast_v4(&mcast_group, &any)?;
 
     // Convert to std::net::UdpSocket to use in a more familiar API
     let std_socket = std::net::UdpSocket::from(socket);
