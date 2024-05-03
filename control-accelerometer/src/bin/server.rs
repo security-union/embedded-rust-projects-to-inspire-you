@@ -1,7 +1,7 @@
 use control_accelerometer::constants::{BROADCAST_IP, BROADCAST_PORT};
 
 use quinn_udp::{RecvMeta, UdpSockRef, UdpSocketState};
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+use socket2::{Domain, Protocol, SockAddr, SockRef, Socket, Type};
 use std::fs::File;
 use std::io::{ErrorKind, IoSliceMut};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -12,11 +12,7 @@ pub fn listen_to_multicast_ip(multicast_address: SocketAddrV4) -> anyhow::Result
     let domain = Domain::for_address(multicast_address.into());
     let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
     socket.set_reuse_address(true)?;
-    #[cfg(target_family = "unix")]
-    {
-        use socket2::SockRef;
-        SockRef::from(&socket).set_reuse_port(true)?;
-    }
+    SockRef::from(&socket).set_reuse_port(true)?;
     let address: SocketAddr = format!("0.0.0.0:{}", multicast_address.port()).parse()?;
     println!("Binding to UDP socket {:?}", address);
     socket.bind(&SockAddr::from(address))?;
