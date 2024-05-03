@@ -38,8 +38,12 @@ async fn main() -> anyhow::Result<()> {
     loop {
         let socket: UdpSockRef = (&socket).into();
         match quinn_socket.recv(socket, &mut iov, &mut meta) {
-            Ok(len) => {
-                println!("got data {}", len);
+            Ok(_len) => {
+                // get data
+                let len = meta[0].len;
+                let telemetry = &iov[0][..len];
+                let csv_row = String::from_utf8(telemetry.to_vec())?;
+                println!("got data {}", csv_row);
             }
             Err(e) => {
                 if e.kind() == ErrorKind::WouldBlock {
