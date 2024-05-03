@@ -1,7 +1,6 @@
 use chrono::{DateTime, Local};
 use control_accelerometer::constants::{BROADCAST_IP, BROADCAST_PORT};
 
-use csv::ReaderBuilder;
 use quinn_udp::{RecvMeta, UdpSockRef, UdpSocketState};
 use socket2::{Domain, Protocol, SockAddr, SockRef, Socket, Type};
 use std::fs::File;
@@ -45,21 +44,12 @@ async fn main() -> anyhow::Result<()> {
         let socket: UdpSockRef = (&socket).into();
         match quinn_socket.recv(socket, &mut iov, &mut meta) {
             Ok(_len) => {
-                // get data
                 let len = meta[0].len;
                 let data = &iov[0][..len];
-                let cursor = std::io::Cursor::new(data);
-                let mut rdr = ReaderBuilder::new().from_reader(cursor);
-
-                for result in rdr.records() {
-                    let record = result?;
-                    let csv_string = format!(
-                        "{},{}\n",
-                        record.get(0).unwrap_or(""),
-                        record.get(1).unwrap_or("")
-                    );
-                    file.write_all(csv_string.as_bytes())?;
-                }
+                let csv_string = std::str::from_utf8(data)?;
+                // add new line to csv string
+                let csv_string = format!("{}\n", csv_string);
+                file.write_all(csv_string.as_bytes())?;
             }
             Err(e) => {
                 if e.kind() == ErrorKind::WouldBlock {
