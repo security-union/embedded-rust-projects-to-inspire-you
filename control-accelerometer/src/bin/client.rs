@@ -14,6 +14,7 @@ const REG_BW_RATE: u8 = 0x2C;
 const REG_POWER_CTL: u8 = 0x2D;
 const REG_DATA_START: u8 = 0x32;
 const REG_DATA_FORMAT: u8 = 0x31;
+const ACCELEROMETER_ID: u8 = 0xE5;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup SPI
@@ -42,12 +43,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "ADXL345 on CS pin {:?} has device ID: {:?}",
             cs_handle, device_id
         );
-        if device_id[0] != 0xE5 {
+        if device_id[0] != ACCELEROMETER_ID {
             println!("ADXL345 on CS is not communicating properly");
             std::process::exit(1);
         }
     }
 
+    // Setup UDP Socket
     let find_available_socket = portpicker::pick_unused_port().expect("No available port");
     let socket = UdpSocket::bind(format!("0.0.0.0:{}", find_available_socket))?;
     socket.join_multicast_v4(&BROADCAST_IP, &"0.0.0.0".parse()?)?;
@@ -55,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // create destination ip and port
     let dest: SocketAddrV4 = SocketAddrV4::new(*BROADCAST_IP, *BROADCAST_PORT);
 
-    // Main loop
+    // Read acceleration data forever :) and send it to the server
     loop {
         let date_and_time = chrono::Local::now();
         let mut payload = format!("timestamp={}", date_and_time);

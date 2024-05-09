@@ -25,9 +25,6 @@ pub fn listen_to_multicast_ip(multicast_address: SocketAddrV4) -> anyhow::Result
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let multi_addr = SocketAddrV4::new(*BROADCAST_IP, *BROADCAST_PORT);
-    let socket = listen_to_multicast_ip(multi_addr)?;
-    let socket = std::net::UdpSocket::from(socket);
     // name file using human readable timestamp from chronos
     // Get the current datetime with the local timezone
     let now: DateTime<Local> = Local::now();
@@ -36,6 +33,9 @@ async fn main() -> anyhow::Result<()> {
     let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
     let mut file = File::create(format!("{}.csv", timestamp))?;
 
+    let multi_addr = SocketAddrV4::new(*BROADCAST_IP, *BROADCAST_PORT);
+    let socket = listen_to_multicast_ip(multi_addr)?;
+    let socket = std::net::UdpSocket::from(socket);
     let quinn_socket = UdpSocketState::default();
     let mut buffer_for_receiving_data = [0u8; 2048];
     let mut iov = [IoSliceMut::new(&mut buffer_for_receiving_data)];
