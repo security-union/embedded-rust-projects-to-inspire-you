@@ -1,5 +1,5 @@
 ## Architecture
-
+```
    +--------------------+
    | RPI Running Client |
    | (Accelerometers)   |
@@ -13,7 +13,7 @@
   | Device 1          |  | Device 2          |  | Device 3          |  | Device 4          |
   | (Server)          |  | (Server)          |  | (Server)          |  | (Server)          |
   +-------------------+  +-------------------+  +-------------------+  +-------------------+
-
+```
 ## Q&A
 
 ### Verify Multicast Handling on Devices
