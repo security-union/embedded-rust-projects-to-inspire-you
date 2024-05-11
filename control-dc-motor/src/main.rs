@@ -1,10 +1,11 @@
 use gpio_cdev::{Chip, LineRequestFlags};
 
-const GPIO17: u32 = 17;
-const GPIO18: u32 = 18;
+const GPIO5: u32 = 5;
+const GPIO6: u32 = 6;
 
 // PWM Min duty cycle in ms
 const PWM_FREQUENCY_HZ: f64 = 100.0;
+const DUTY_CYCLE: f64 = 50.0;
 
 enum Direction {
     Left,
@@ -16,16 +17,15 @@ fn main() -> Result<(), gpio_cdev::Error> {
     let mut chip = Chip::new("/dev/gpiochip0")?;
     let mut current_direction = Direction::Left;
     let mut last_direction_change = std::time::Instant::now();
-    let line17 = chip.get_line(GPIO17)?;
-    let line18 = chip.get_line(GPIO18)?;
+    let line5 = chip.get_line(GPIO5)?;
+    let line6 = chip.get_line(GPIO6)?;
     
     // Initially both are off
-    let line17 = line17.request(LineRequestFlags::OUTPUT, 0, "pwm")?;
-    let line18 = line18.request(LineRequestFlags::OUTPUT, 0, "pwm")?;
+    let line5 = line5.request(LineRequestFlags::OUTPUT, 0, "pwm")?;
+    let line6 = line6.request(LineRequestFlags::OUTPUT, 0, "pwm")?;
 
-    let duty_cycle = 99.0;
-    let time_on_ms = (duty_cycle / 100.0) * (1.0 / PWM_FREQUENCY_HZ) * 1000.0;
-    let time_off_ms = ((100.0 - duty_cycle) / 100.0) * (1.0 / PWM_FREQUENCY_HZ) * 1000.0;
+    let time_on_ms = (DUTY_CYCLE / 100.0) * (1.0 / PWM_FREQUENCY_HZ) * 1000.0;
+    let time_off_ms = ((100.0 - DUTY_CYCLE) / 100.0) * (1.0 / PWM_FREQUENCY_HZ) * 1000.0;
 
     println!("Time on: {} ms, Time off: {} ms", time_on_ms, time_off_ms);
 
@@ -34,18 +34,18 @@ fn main() -> Result<(), gpio_cdev::Error> {
         // turn it on
         match current_direction {
             Direction::Left => {
-                line17.set_value(1)?;
-                line18.set_value(0)?;
+                line5.set_value(1)?;
+                line6.set_value(0)?;
             }
             Direction::Right => {
-                line17.set_value(0)?;
-                line18.set_value(1)?;
+                line5.set_value(0)?;
+                line6.set_value(1)?;
             }
         }
         std::thread::sleep(std::time::Duration::from_millis(time_on_ms as u64));
         // turn it off
-        line17.set_value(0)?;
-        line18.set_value(0)?;
+        line5.set_value(0)?;
+        line6.set_value(0)?;
         std::thread::sleep(std::time::Duration::from_millis(time_off_ms as u64));
         // change direction
         if last_direction_change.elapsed().as_secs() >= 5 {
@@ -62,6 +62,4 @@ fn main() -> Result<(), gpio_cdev::Error> {
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
     }
-
-    Ok(())
 }
