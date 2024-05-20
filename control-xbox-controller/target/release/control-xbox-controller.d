@@ -1,1 +1,0 @@
-/Users/darioalessandro/Documents/rust-projects-to-inspire-you/control-xbox-controller/target/release/control-xbox-controller: /Users/darioalessandro/Documents/rust-projects-to-inspire-you/control-xbox-controller/src/main.rs
