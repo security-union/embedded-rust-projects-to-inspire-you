@@ -44,11 +44,6 @@ fn main() -> Result<(), gpio_cdev::Error> {
     });
 
     loop {
-        // Examine new events
-        while let Some(Event { id, event, time }) = gilrs.next_event() {
-            // println!("{:?} New event from {}: {:?}", time, id, event);
-        }
-
         // Get the state of the right stick's horizontal axis
         for (_id, gamepad) in gilrs.gamepads() {
             let axis_value = gamepad.value(Axis::RightStickX);
