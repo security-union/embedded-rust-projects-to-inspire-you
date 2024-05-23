@@ -1,0 +1,10 @@
+[package]
+name = "xbox-control-servo-dcmotor"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gilrs = "0.10.3"
+gpio-cdev = "0.6.0"
