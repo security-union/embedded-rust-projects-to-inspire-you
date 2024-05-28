@@ -49,7 +49,7 @@ fn main() -> Result<(), gpio_cdev::Error> {
         motor_control_thread(motor_rx).expect("Motor control thread panicked");
     });
 
-    event_loop(gilrs, servo_tx, motor_tx).expect("Event loop panicked");
+    controller_read_loop(gilrs, servo_tx, motor_tx).expect("Event loop panicked");
 
     pwm_thread_handle.join().expect("PWM thread panicked");
     motor_control_thread_handle
@@ -135,7 +135,7 @@ fn motor_control_thread(receiver: Receiver<(i32, Direction)>) -> Result<(), gpio
     }
 }
 
-fn event_loop(
+fn controller_read_loop(
     mut gilrs: Gilrs,
     servo_tx: Sender<f32>,
     motor_tx: Sender<(i32, Direction)>,
