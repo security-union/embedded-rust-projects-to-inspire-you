@@ -8,7 +8,7 @@ use std::time::Duration;
 const GPIO13: u32 = 6;
 const GPIO17: u32 = 17;
 const GPIO27: u32 = 27;
-const PERIOD_MS: i32 = 20; // 20 ms period
+const MOTOR_PERIOD_MS: i32 = 10; // 20 ms period
 const SERVO_PERIOD_MS: f32 = 20.0; // 20 ms period for the servo
 const PULSE_MIN_US: f32 = 1200.0; // Minimum pulse width
 const PULSE_NEUTRAL_US: f32 = 1500.0; // Neutral pulse width
@@ -129,8 +129,8 @@ fn motor_control_thread(
             }
 
             // PWM control for the motor speed
-            let time_on_ms = (current_duty_cycle * PERIOD_MS) / 1000;
-            let time_off_ms = PERIOD_MS - time_on_ms;
+            let time_on_ms = (current_duty_cycle * MOTOR_PERIOD_MS) / 1000;
+            let time_off_ms = MOTOR_PERIOD_MS - time_on_ms;
             println!(
                 "current_duty_cycle: {} target_duty_cycle {}",
                 current_duty_cycle, target_duty_cycle
@@ -145,7 +145,7 @@ fn motor_control_thread(
             // Stop the motor by setting both lines to low
             line1.set_value(0)?;
             line2.set_value(0)?;
-            thread::sleep(Duration::from_millis(PERIOD_MS as u64));
+            thread::sleep(Duration::from_millis(MOTOR_PERIOD_MS as u64));
         }
     }
 }
