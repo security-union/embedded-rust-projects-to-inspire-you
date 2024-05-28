@@ -32,7 +32,7 @@ fn set_panic_hook() {
 fn main() -> Result<(), gpio_cdev::Error> {
     set_panic_hook(); // Set the global panic hook
 
-    let mut gilrs = Gilrs::new().unwrap();
+    let gilrs = Gilrs::new().unwrap();
 
     // Iterate over all connected gamepads
     for (_id, gamepad) in gilrs.gamepads() {
