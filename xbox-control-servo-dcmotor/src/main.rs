@@ -8,10 +8,11 @@ use std::time::Duration;
 const GPIO13: u32 = 6;
 const GPIO17: u32 = 17;
 const GPIO27: u32 = 27;
-const PERIOD_MS: f32 = 10.0; // 20 ms period
-const PULSE_MIN_US: f32 = 1200.0; // Minimum pulse width in microseconds
-const PULSE_NEUTRAL_US: f32 = 1500.0; // Neutral pulse width in microseconds
-const PULSE_MAX_US: f32 = 1800.0; // Maximum pulse width in microseconds
+const PERIOD_MS: i32 = 10; // 20 ms period
+const SERVO_PERIOD_MS: i32 = 20;
+const PULSE_MIN_US: i32 = 1200; // Minimum pulse width in microseconds
+const PULSE_NEUTRAL_US: i32 = 1500; // Neutral pulse width in microseconds
+const PULSE_MAX_US: i32 = 1800; // Maximum pulse width in microseconds
 const DEADZONE: i32 = 100; // Deadzone threshold for the left stick's Y-axis (0.1 scaled to 1000)
 const RAMP_UP_INCREMENT: i32 = 10; // Incremental step for ramping up the speed
 
@@ -59,7 +60,7 @@ fn main() -> Result<(), gpio_cdev::Error> {
     Ok(())
 }
 
-fn servo_control_thread(receiver: Receiver<f32>) -> Result<(), gpio_cdev::Error> {
+fn servo_control_thread(receiver: Receiver<i32>) -> Result<(), gpio_cdev::Error> {
     let mut chip = Chip::new("/dev/gpiochip0")?;
     let line = chip.get_line(GPIO13)?;
     let line = line.request(LineRequestFlags::OUTPUT, 0, "pwm")?;
@@ -71,8 +72,11 @@ fn servo_control_thread(receiver: Receiver<f32>) -> Result<(), gpio_cdev::Error>
             last_pulse_width = time_on_us;
         }
 
-        let time_off_us = (PERIOD_MS * 1000.0) - last_pulse_width;
-
+        let time_off_us = SERVO_PERIOD_MS * 1000 - last_pulse_width;
+        println!(
+            "Pulse width: {} us time off {}",
+            last_pulse_width, time_off_us
+        );
         line.set_value(1)?;
         thread::sleep(Duration::from_micros(last_pulse_width as u64));
         line.set_value(0)?;
@@ -137,7 +141,7 @@ fn motor_control_thread(receiver: Receiver<(i32, Direction)>) -> Result<(), gpio
 
 fn controller_read_loop(
     mut gilrs: Gilrs,
-    servo_tx: Sender<f32>,
+    servo_tx: Sender<i32>,
     motor_tx: Sender<(i32, Direction)>,
 ) -> Result<(), gpio_cdev::Error> {
     loop {
@@ -146,8 +150,9 @@ fn controller_read_loop(
             match event {
                 AxisChanged(axis, value, _) => {
                     if axis == Axis::RightStickX {
-                        let new_pulse_width =
-                            PULSE_MIN_US + ((value + 1.0) / 2.0) * (PULSE_MAX_US - PULSE_MIN_US);
+                        let scaled_value =
+                            ((value + 1.0) / 2.0 * (PULSE_MAX_US - PULSE_MIN_US) as f32) as i32;
+                        let new_pulse_width = PULSE_MIN_US + scaled_value;
                         servo_tx.send(new_pulse_width).unwrap();
                     }
 
