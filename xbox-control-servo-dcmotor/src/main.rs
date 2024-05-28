@@ -1,9 +1,9 @@
-use gilrs::{Axis, Event, Gilrs, EventType::*};
+use gilrs::{Axis, Event, EventType::*, Gilrs};
 use gpio_cdev::{Chip, LineRequestFlags};
-use std::sync::mpsc::{self, Sender, Receiver};
+use std::panic;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
-use std::panic;
 
 const GPIO13: u32 = 6;
 const GPIO17: u32 = 17;
@@ -29,7 +29,7 @@ fn set_panic_hook() {
 }
 
 fn main() -> Result<(), gpio_cdev::Error> {
-    set_panic_hook();  // Set the global panic hook
+    set_panic_hook(); // Set the global panic hook
 
     let mut gilrs = Gilrs::new().unwrap();
 
@@ -52,7 +52,9 @@ fn main() -> Result<(), gpio_cdev::Error> {
     event_loop(gilrs, servo_tx, motor_tx).expect("Event loop panicked");
 
     pwm_thread_handle.join().expect("PWM thread panicked");
-    motor_control_thread_handle.join().expect("Motor control thread panicked");
+    motor_control_thread_handle
+        .join()
+        .expect("Motor control thread panicked");
 
     Ok(())
 }
@@ -113,43 +115,39 @@ fn motor_control_thread(receiver: Receiver<(i32, Direction)>) -> Result<(), gpio
                 current_duty_cycle = 0;
             }
         }
-
-        if current_duty_cycle > 0 {
-            // Set the direction of the motor
-            if last_direction == Direction::Forward {
-                line1.set_value(1)?;
-                line2.set_value(0)?;
-            } else {
-                line1.set_value(0)?;
-                line2.set_value(1)?;
-            }
-
-            // PWM control for the motor speed
-            let time_on_ms = (current_duty_cycle * PERIOD_MS as i32) / 1000;
-            let time_off_ms = PERIOD_MS as i32 - time_on_ms;
-
-            thread::sleep(Duration::from_millis(time_on_ms as u64));
-            line1.set_value(0)?;
+        if last_direction == Direction::Forward {
+            line1.set_value(1)?;
             line2.set_value(0)?;
-            thread::sleep(Duration::from_millis(time_off_ms as u64));
         } else {
-            // Stop the motor by setting both lines to low
             line1.set_value(0)?;
-            line2.set_value(0)?;
-            thread::sleep(Duration::from_millis(PERIOD_MS as u64));
+            line2.set_value(1)?;
         }
+
+        // PWM control for the motor speed
+        let time_on_ms = (current_duty_cycle * PERIOD_MS as i32) / 1000;
+        let time_off_ms = PERIOD_MS as i32 - time_on_ms;
+
+        thread::sleep(Duration::from_millis(time_on_ms as u64));
+        // Stop the motor by setting both lines to low
+        line1.set_value(0)?;
+        line2.set_value(0)?;
+        thread::sleep(Duration::from_millis(time_off_ms as u64));
     }
 }
 
-fn event_loop(mut gilrs: Gilrs, servo_tx: Sender<f32>, motor_tx: Sender<(i32, Direction)>) -> Result<(), gpio_cdev::Error> {
+fn event_loop(
+    mut gilrs: Gilrs,
+    servo_tx: Sender<f32>,
+    motor_tx: Sender<(i32, Direction)>,
+) -> Result<(), gpio_cdev::Error> {
     loop {
-        while let Some(Event { id, event, time }) = gilrs.next_event() {
+        while let Some(Event { event, .. }) = gilrs.next_event() {
             // println!("{:?} New event from {}: {:?}", time, id, event);
             match event {
                 AxisChanged(axis, value, _) => {
                     if axis == Axis::RightStickX {
-                        let new_pulse_width = PULSE_MIN_US
-                            + ((value + 1.0) / 2.0) * (PULSE_MAX_US - PULSE_MIN_US);
+                        let new_pulse_width =
+                            PULSE_MIN_US + ((value + 1.0) / 2.0) * (PULSE_MAX_US - PULSE_MIN_US);
                         servo_tx.send(new_pulse_width).unwrap();
                     }
 
