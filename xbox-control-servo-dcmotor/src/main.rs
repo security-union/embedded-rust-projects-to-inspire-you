@@ -5,9 +5,9 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-const GPIO13: u32 = 6;
-const GPIO17: u32 = 17;
-const GPIO27: u32 = 27;
+const SERVO_GPIO: u32 = 6;
+const DC_MOTOR_GPIO_1: u32 = 17;
+const DC_MOTOR_GPIO_2: u32 = 27;
 const PERIOD_MS: i32 = 10; // 20 ms period
 const SERVO_PERIOD_MS: i32 = 20;
 const PULSE_MIN_US: i32 = 1200; // Minimum pulse width in microseconds
@@ -62,7 +62,7 @@ fn main() -> Result<(), gpio_cdev::Error> {
 
 fn servo_control_thread(receiver: Receiver<i32>) -> Result<(), gpio_cdev::Error> {
     let mut chip = Chip::new("/dev/gpiochip0")?;
-    let line = chip.get_line(GPIO13)?;
+    let line = chip.get_line(SERVO_GPIO)?;
     let line = line.request(LineRequestFlags::OUTPUT, 0, "pwm")?;
 
     let mut last_pulse_width = PULSE_NEUTRAL_US;
@@ -86,9 +86,9 @@ fn servo_control_thread(receiver: Receiver<i32>) -> Result<(), gpio_cdev::Error>
 
 fn motor_control_thread(receiver: Receiver<(i32, Direction)>) -> Result<(), gpio_cdev::Error> {
     let mut chip = Chip::new("/dev/gpiochip0")?;
-    let line1 = chip.get_line(GPIO17)?;
+    let line1 = chip.get_line(DC_MOTOR_GPIO_1)?;
     let line1 = line1.request(LineRequestFlags::OUTPUT, 0, "motor1")?;
-    let line2 = chip.get_line(GPIO27)?;
+    let line2 = chip.get_line(DC_MOTOR_GPIO_2)?;
     let line2 = line2.request(LineRequestFlags::OUTPUT, 0, "motor2")?;
 
     let mut current_duty_cycle = 0;
