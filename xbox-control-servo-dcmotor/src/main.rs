@@ -34,11 +34,6 @@ fn main() -> Result<(), gpio_cdev::Error> {
 
     let gilrs = Gilrs::new().unwrap();
 
-    // Iterate over all connected gamepads
-    for (_id, gamepad) in gilrs.gamepads() {
-        println!("{} is {:?}", gamepad.name(), gamepad.power_info());
-    }
-
     let (servo_tx, servo_rx) = mpsc::channel();
     let (motor_tx, motor_rx) = mpsc::channel();
 
@@ -60,7 +55,7 @@ fn main() -> Result<(), gpio_cdev::Error> {
     Ok(())
 }
 
-fn servo_control_thread(receiver: Receiver<i32>) -> Result<(), gpio_cdev::Error> {
+fn servo_control_thread(receiver: Receiver<f32>) -> Result<(), gpio_cdev::Error> {
     let mut chip = Chip::new("/dev/gpiochip0")?;
     let line = chip.get_line(SERVO_GPIO)?;
     let line = line.request(LineRequestFlags::OUTPUT, 0, "pwm")?;
@@ -68,8 +63,9 @@ fn servo_control_thread(receiver: Receiver<i32>) -> Result<(), gpio_cdev::Error>
     let mut last_pulse_width = PULSE_NEUTRAL_US;
 
     loop {
-        while let Ok(time_on_us) = receiver.try_recv() {
-            last_pulse_width = time_on_us;
+        while let Ok(value) = receiver.try_recv() {
+            let scaled_value = ((value + 1.0) / 2.0 * (PULSE_MAX_US - PULSE_MIN_US) as f32) as i32;
+            last_pulse_width = PULSE_MIN_US + scaled_value;
         }
 
         let time_off_us = SERVO_PERIOD_MS * 1000 - last_pulse_width;
@@ -84,7 +80,7 @@ fn servo_control_thread(receiver: Receiver<i32>) -> Result<(), gpio_cdev::Error>
     }
 }
 
-fn motor_control_thread(receiver: Receiver<(i32, Direction)>) -> Result<(), gpio_cdev::Error> {
+fn motor_control_thread(receiver: Receiver<f32>) -> Result<(), gpio_cdev::Error> {
     let mut chip = Chip::new("/dev/gpiochip0")?;
     let line1 = chip.get_line(DC_MOTOR_GPIO_1)?;
     let line1 = line1.request(LineRequestFlags::OUTPUT, 0, "motor1")?;
@@ -96,9 +92,17 @@ fn motor_control_thread(receiver: Receiver<(i32, Direction)>) -> Result<(), gpio
     let mut last_direction = Direction::Forward;
 
     loop {
-        while let Ok((target_duty_cycle, direction)) = receiver.try_recv() {
-            last_duty_cycle = target_duty_cycle;
-            last_direction = direction;
+        while let Ok(value) = receiver.try_recv() {
+            last_duty_cycle = if (value * 1000.0).abs() < DEADZONE as f32 {
+                0
+            } else {
+                (value * 1000.0).abs() as i32
+            };
+            last_direction = if value > 0.0 {
+                Direction::Forward
+            } else {
+                Direction::Backward
+            };
         }
 
         if current_duty_cycle != last_duty_cycle {
@@ -141,36 +145,19 @@ fn motor_control_thread(receiver: Receiver<(i32, Direction)>) -> Result<(), gpio
 
 fn controller_read_loop(
     mut gilrs: Gilrs,
-    servo_tx: Sender<i32>,
-    motor_tx: Sender<(i32, Direction)>,
+    servo_tx: Sender<f32>,
+    motor_tx: Sender<f32>,
 ) -> Result<(), gpio_cdev::Error> {
     loop {
         while let Some(Event { event, .. }) = gilrs.next_event() {
-            // println!("{:?} New event from {}: {:?}", time, id, event);
             match event {
-                AxisChanged(axis, value, _) => {
-                    if axis == Axis::RightStickX {
-                        let scaled_value =
-                            ((value + 1.0) / 2.0 * (PULSE_MAX_US - PULSE_MIN_US) as f32) as i32;
-                        let new_pulse_width = PULSE_MIN_US + scaled_value;
-                        servo_tx.send(new_pulse_width).unwrap();
-                    }
-
-                    if axis == Axis::LeftStickY {
-                        let target_duty_cycle = if (value * 1000.0).abs() < DEADZONE as f32 {
-                            0
-                        } else {
-                            (value * 1000.0).abs() as i32
-                        };
-                        let direction = if value > 0.0 {
-                            Direction::Forward
-                        } else {
-                            Direction::Backward
-                        };
-                        motor_tx.send((target_duty_cycle, direction)).unwrap();
-                    }
+                AxisChanged(Axis::RightStickX, value, _) => {
+                    servo_tx.send(value).unwrap();
                 }
-                _ => (),
+                AxisChanged(Axis::LeftStickY, value, _) => {
+                    motor_tx.send(value).unwrap();
+                }
+                _ => {}
             }
         }
     }
