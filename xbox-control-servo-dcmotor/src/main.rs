@@ -8,13 +8,13 @@ use std::time::Duration;
 const SERVO_GPIO: u32 = 6;
 const DC_MOTOR_GPIO_1: u32 = 17;
 const DC_MOTOR_GPIO_2: u32 = 27;
-const PERIOD_MS: i32 = 10; // 20 ms period
-const SERVO_PERIOD_MS: i32 = 20;
-const PULSE_MIN_US: i32 = 1200; // Minimum pulse width in microseconds
-const PULSE_NEUTRAL_US: i32 = 1500; // Neutral pulse width in microseconds
-const PULSE_MAX_US: i32 = 1800; // Maximum pulse width in microseconds
-const DEADZONE: i32 = 100; // Deadzone threshold for the left stick's Y-axis (0.1 scaled to 1000)
-const RAMP_UP_INCREMENT: i32 = 10; // Incremental step for ramping up the speed
+const DC_MOTOR_PERIOD_MS: u64 = 10;
+const SERVO_PERIOD_US: f32 = 20000f32;
+const PULSE_MIN_US: f32 = 1200f32; // Minimum pulse width in microseconds
+const PULSE_NEUTRAL_US: f32 = 1500f32; // Neutral pulse width in microseconds
+const PULSE_MAX_US: f32 = 1800f32; // Maximum pulse width in microseconds
+const DEADZONE: f32 = 100f32; // Deadzone threshold for the left stick's Y-axis (0.1 scaled to 1000)
+const RAMP_UP_INCREMENT: u64 = 10; // Incremental step for ramping up the speed
 
 #[derive(Clone, Copy, PartialEq)]
 enum Direction {
@@ -60,21 +60,20 @@ fn servo_control_thread(receiver: Receiver<f32>) -> Result<(), gpio_cdev::Error>
     let line = chip.get_line(SERVO_GPIO)?;
     let line = line.request(LineRequestFlags::OUTPUT, 0, "pwm")?;
 
-    let mut last_pulse_width = PULSE_NEUTRAL_US;
+    let mut time_on_us = PULSE_NEUTRAL_US;
+    let pulse_range = PULSE_MAX_US - PULSE_MIN_US;
 
     loop {
         while let Ok(value) = receiver.try_recv() {
-            let scaled_value = ((value + 1.0) / 2.0 * (PULSE_MAX_US - PULSE_MIN_US) as f32) as i32;
-            last_pulse_width = PULSE_MIN_US + scaled_value;
+            // value goes from -1 to 1, so we need to scale it to the pulse range
+            // and add the minimum pulse width
+            let scaled_value = ((value + 1.0) / 2.0) * pulse_range;
+            time_on_us = PULSE_MIN_US + scaled_value;
         }
 
-        let time_off_us = SERVO_PERIOD_MS * 1000 - last_pulse_width;
-        println!(
-            "Pulse width: {} us time off {}",
-            last_pulse_width, time_off_us
-        );
+        let time_off_us = SERVO_PERIOD_US  - time_on_us;
         line.set_value(1)?;
-        thread::sleep(Duration::from_micros(last_pulse_width as u64));
+        thread::sleep(Duration::from_micros(time_on_us as u64));
         line.set_value(0)?;
         thread::sleep(Duration::from_micros(time_off_us as u64));
     }
@@ -88,15 +87,15 @@ fn motor_control_thread(receiver: Receiver<f32>) -> Result<(), gpio_cdev::Error>
     let line2 = line2.request(LineRequestFlags::OUTPUT, 0, "motor2")?;
 
     let mut current_duty_cycle = 0;
-    let mut last_duty_cycle = 0;
+    let mut target_duty_cycle = 0;
     let mut last_direction = Direction::Forward;
 
     loop {
         while let Ok(value) = receiver.try_recv() {
-            last_duty_cycle = if (value * 1000.0).abs() < DEADZONE as f32 {
+            target_duty_cycle = if (value * 1000.0).abs() < DEADZONE {
                 0
             } else {
-                (value * 1000.0).abs() as i32
+                (value * 1000.0).abs() as u64
             };
             last_direction = if value > 0.0 {
                 Direction::Forward
@@ -105,21 +104,21 @@ fn motor_control_thread(receiver: Receiver<f32>) -> Result<(), gpio_cdev::Error>
             };
         }
 
-        if current_duty_cycle != last_duty_cycle {
+        if current_duty_cycle != target_duty_cycle {
             // Ramp up or down to the target duty cycle
-            if current_duty_cycle < last_duty_cycle {
+            if current_duty_cycle < target_duty_cycle {
                 current_duty_cycle += RAMP_UP_INCREMENT;
-                if current_duty_cycle > last_duty_cycle {
-                    current_duty_cycle = last_duty_cycle;
+                if current_duty_cycle > target_duty_cycle {
+                    current_duty_cycle = target_duty_cycle;
                 }
             } else {
                 current_duty_cycle -= RAMP_UP_INCREMENT;
-                if current_duty_cycle < last_duty_cycle {
-                    current_duty_cycle = last_duty_cycle;
+                if current_duty_cycle < target_duty_cycle {
+                    current_duty_cycle = target_duty_cycle;
                 }
             }
 
-            if last_duty_cycle == 0 {
+            if target_duty_cycle == 0 {
                 current_duty_cycle = 0;
             }
         }
@@ -132,14 +131,14 @@ fn motor_control_thread(receiver: Receiver<f32>) -> Result<(), gpio_cdev::Error>
         }
 
         // PWM control for the motor speed
-        let time_on_ms = (current_duty_cycle * PERIOD_MS as i32) / 1000;
-        let time_off_ms = PERIOD_MS as i32 - time_on_ms;
+        let time_on_ms = (current_duty_cycle * DC_MOTOR_PERIOD_MS) / 1000;
+        let time_off_ms = DC_MOTOR_PERIOD_MS - time_on_ms;
 
-        thread::sleep(Duration::from_millis(time_on_ms as u64));
+        thread::sleep(Duration::from_millis(time_on_ms));
         // Stop the motor by setting both lines to low
         line1.set_value(0)?;
         line2.set_value(0)?;
-        thread::sleep(Duration::from_millis(time_off_ms as u64));
+        thread::sleep(Duration::from_millis(time_off_ms));
     }
 }
 
