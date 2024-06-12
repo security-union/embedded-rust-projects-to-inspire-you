@@ -19,7 +19,6 @@ Check out our [YouTube playlist](https://www.youtube.com/playlist?list=PLxM2CWwQ
 - **3D Vehicle Simulation**: Create a proof of concept for a 3D vehicle driving down the road.
 - **Xbox Controller Integration**: Control an Xbox controller with Rust.
 - **Motor Speed Control**: Explore the differences between PWM and reducers for DC motor control.
-- **Fast Developer Workflows**: Enhance your coding efficiency with touch typing, local testing, and version control.
 
 ## 📧 Get Involved
 Feel free to contribute, ask questions, or share your own projects inspired by Rust. Let's build an inspiring Rust community together!
